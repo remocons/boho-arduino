@@ -1,6 +1,10 @@
-
-#ifndef Boho_H
-#define Boho_H
+/*
+  Boho.h
+  Ultra Light SSL Without RSA.
+  Dongeun Lee <sixgen@gmail.com>
+*/
+#ifndef Boho_h
+#define Boho_h
 
 #include <SHA256.h>
 #include <Crypto.h>
@@ -19,7 +23,7 @@
 union u32buf4{  uint32_t u32;  uint8_t buf[4]; };  // Union: uint32 & 4bytes buffer
 union u16buf2{  uint16_t u16;  uint8_t buf[2]; };  // Union: uint16 & 2bytes buffer
 
-// simple serial print debuger
+// simple serial print debugger
 void boho_print_time( uint32_t secTime );
 void boho_print_hex( const void* titleStr, const void* data, size_t len);
 void boho_index_print_hex( int num , char* titleStr, uint8_t* data, size_t len);

@@ -1,7 +1,5 @@
 # Boho for arduino
 
- In development.
-
 - Ultra Light SSL Without RSA.
 - 'boho' means protection.
 
@@ -9,6 +7,7 @@
 - general data encryption.
 - authentication.
 - secure communication.
+- support Arduino UNO.
 
 ## applications
 - Websocket authentication, secure communication.
@@ -16,9 +15,9 @@
 - secure MQTT payload.
 - local file encryption.
 
-## platforms
-- JavaScript: Node.js , Web Browser. [ [github](https://github.com/congtrol/boho.git) ] 
-- C/C++: Arduino [ [github](https://github.com/congtrol/boho-arduino.git) ] 
+## libraries
+- JavaScript: Node.js , Web Browser. [ [github](https://github.com/congtrol/boho) ] 
+- C/C++: Arduino [ [github](https://github.com/congtrol/boho-arduino) ]
 
 
 ## license
