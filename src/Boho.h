@@ -33,15 +33,15 @@ void boho_convert_hex( char* out, const void* data, size_t len);
 /*
     Boho Authentication Process.
     client <<-AUTH_PACK->> server
-    1. auth_req() 
+    1. auth_req() // client send auth_request 
       AUTH_REQ >>
     2. auth_nonce() //server send server nonce
-      << AUTH_NONCE or AUTH_FAIL
-    3. auth_hmac( buffer) //client send  hmac with server nonce
+      << AUTH_NONCE 
+    3. auth_hmac( AUTH_NONCE) //client send  hmac with server nonce
       AUTH_HMAC >>
-    4. check_auth_hmac( infoPack)  //server verify client.
-      AUTH_ACK <<
-    5. check_auth_ack_hmac( buffer)  //client verify server.
+    4. check_auth_hmac( AUTH_HMAC )  //server verify client.
+      << AUTH_ACK or AUTH_FAIL
+    5. check_auth_ack_hmac( AUTH_ACK )  //client verify server.
 */
 
 class Boho
@@ -111,9 +111,6 @@ class Boho
     union u32buf4 remoteNonce , localNonce;
     uint32_t  lastSetMilTime; 
 };
-
-
-
 
 #endif
 

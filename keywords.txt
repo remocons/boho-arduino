@@ -6,56 +6,58 @@
 # Datatypes (KEYWORD1)
 #######################################
 
-Boho  KEYWORD1
-
+Boho	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-set_id8 KEYWORD2
-set_hash_id8 KEYWORD2
-set_key KEYWORD2
-setTime KEYWORD2
-refreshTime KEYWORD2
-getUnixTime KEYWORD2
-set_salt12 KEYWORD2
-set_clock_rand KEYWORD2
-set_clock_nonce KEYWORD2
-resetOTP KEYWORD2
-generateIndexOTP KEYWORD2
-generateHMAC KEYWORD2
-xotp KEYWORD2
-setHash KEYWORD2
-encryptPack KEYWORD2
-decryptPack KEYWORD2
-encrypt_e2e KEYWORD2
-decrypt_e2e KEYWORD2
-login KEYWORD2
-auth_req KEYWORD2
-auth_hmac KEYWORD2
-check_auth_ack_hmac KEYWORD2
-encrypt_488 KEYWORD2
-decrypt_488 KEYWORD2
+set_id8	KEYWORD2
+set_hash_id8	KEYWORD2
+set_key	KEYWORD2
+setTime	KEYWORD2
+refreshTime	KEYWORD2
+getUnixTime	KEYWORD2
+set_salt12	KEYWORD2
+set_clock_rand	KEYWORD2
+set_clock_nonce	KEYWORD2
+resetOTP	KEYWORD2
+generateIndexOTP	KEYWORD2
+generateHMAC	KEYWORD2
+xotp	KEYWORD2
+setHash	KEYWORD2
+encryptPack	KEYWORD2
+decryptPack	KEYWORD2
+encrypt_e2e	KEYWORD2
+decrypt_e2e	KEYWORD2
+login	KEYWORD2
+auth_req	KEYWORD2
+auth_hmac	KEYWORD2
+check_auth_ack_hmac	KEYWORD2
+encrypt_488	KEYWORD2
+decrypt_488	KEYWORD2
 
+boho_print_time	KEYWORD2
+boho_print_hex	KEYWORD2
+boho_index_print_hex	KEYWORD2
+boho_convert_hex	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
 #######################################
 
-MetaSize_AUTH_REQ LITERAL1
-MetaSize_AUTH_NONCE LITERAL1
-MetaSize_AUTH_HMAC  LITERAL1
-MetaSize_AUTH_ACK  LITERAL1
-MetaSize_ENC_PACK  LITERAL1
-MetaSize_ENC_488  LITERAL1
-
-AUTH_REQ  LITERAL1
-AUTH_NONCE  LITERAL1
-AUTH_HMAC  LITERAL1
-AUTH_ACK  LITERAL1
-AUTH_FAIL  LITERAL1
-AUTH_EXT  LITERAL1
-ENC_PACK  LITERAL1
-ENC_E2E  LITERAL1
-ENC_488  LITERAL1
+MetaSize_AUTH_REQ	LITERAL1
+MetaSize_AUTH_NONCE	LITERAL1
+MetaSize_AUTH_HMAC	LITERAL1
+MetaSize_AUTH_ACK	LITERAL1
+MetaSize_ENC_PACK	LITERAL1
+MetaSize_ENC_488	LITERAL1
+AUTH_REQ	LITERAL1
+AUTH_NONCE	LITERAL1
+AUTH_HMAC	LITERAL1
+AUTH_ACK	LITERAL1
+AUTH_FAIL	LITERAL1
+AUTH_EXT	LITERAL1
+ENC_PACK	LITERAL1
+ENC_E2E	LITERAL1
+ENC_488	LITERAL1
