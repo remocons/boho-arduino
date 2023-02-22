@@ -12,6 +12,7 @@ Boho	KEYWORD1
 # Methods and Functions (KEYWORD2)
 #######################################
 
+clearAuth	KEYWORD2
 set_id8	KEYWORD2
 set_hash_id8	KEYWORD2
 set_key	KEYWORD2
