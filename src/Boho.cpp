@@ -1,7 +1,7 @@
 
 /*
   Boho.cpp
-  Ultra Light SSL Without RSA.
+  Ultra Light SSL Without PKI.
   Dongeun Lee <sixgen@gmail.com>
 */
 #include "Boho.h"
@@ -19,6 +19,17 @@ Boho::Boho()
   remoteNonce.u32 = 0;
   localNonce.u32 = 0;
   lastSetMilTime = millis();
+}
+
+void Boho::clearAuth(void)
+{
+  memset( _id8, 0, 8);
+  memset( _otpSrc44, 0, 44);
+  memset( _otp36, 0, 36);
+  memset( _hmac, 0, 32);
+  memset( localNonce.buf, 0, 4);
+  memset( remoteNonce.buf, 0, 4);
+  isAuthorized = false;
 }
 
 // accept max 8 chars.

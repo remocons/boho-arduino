@@ -1,6 +1,6 @@
 /*
   Boho.h
-  Ultra Light SSL Without RSA.
+  Ultra Light SSL Without PKI.
   Dongeun Lee <sixgen@gmail.com>
 */
 #ifndef Boho_h
@@ -61,6 +61,7 @@ class Boho
 
 
     Boho( void);
+    void clearAuth(void);
     void set_id8(const char* data );
     void set_hash_id8(const char* data );
     void set_hash_id8(const void* data, size_t len );
@@ -99,16 +100,15 @@ class Boho
     uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
     
     bool isAuthorized = false;
-    uint8_t _otpSrc44[44]={0};  // mainKey[32]+ otpSrcPublic[12]
 
   private:
     Hash *hash;
     uint8_t _id8[8]={0};
+    uint8_t _otpSrc44[44]={0};  // mainKey[32]+ otpSrcPublic[12]
     uint8_t _otp36[36]={0};
     uint8_t _hmac[32];
-    
-    union u32buf4 secTime, milTime , microTime;
     union u32buf4 remoteNonce , localNonce;
+    union u32buf4 secTime, milTime , microTime;
     uint32_t  lastSetMilTime; 
 };
 

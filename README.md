@@ -1,6 +1,6 @@
 # Boho for arduino
 
-- Ultra Light SSL Without RSA.
+- Ultra Light SSL Without PKI.
 - 'boho' means protection.
 
 ## features
