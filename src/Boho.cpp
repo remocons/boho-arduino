@@ -66,6 +66,21 @@ void Boho::set_key(const void* data, size_t len )
   hash->finalize( _otpSrc44, 32);
 }
 
+void Boho::set_id_key(const char* id_key )
+{
+  int len = strlen(id_key);
+  char id[8] = { 0 };
+  int i;
+  for( i = 0; i<8; i++){
+    if(id_key[i] == '.'){
+      i++;
+      break;
+    }
+    id[i] = id_key[i];
+  }
+  set_id8(id);
+  set_key( (void *)(id_key + i) ,  len - i);
+}
 
 void  Boho::setTime( uint32_t utc ){
   secTime.u32 = utc;

@@ -68,6 +68,7 @@ class Boho
 
     void set_key(const char* data );
     void set_key(const void* data, size_t len );
+    void set_id_key(const char* id_key );
 
     void setTime( uint32_t utc );
     void refreshTime( void );
@@ -91,7 +92,6 @@ class Boho
     uint32_t encrypt_e2e( uint8_t *out, const void *in, uint32_t len , const char * key);
     uint32_t decrypt_e2e(  void *out, uint8_t *in, uint32_t len , const char * key);
 
-    int login();
     int auth_req( uint8_t* out);
     int auth_hmac( uint8_t* out, const void* auth_req , size_t len);
     bool check_auth_ack_hmac( const void* auth_ack, size_t len );

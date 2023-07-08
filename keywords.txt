@@ -16,6 +16,7 @@ clearAuth	KEYWORD2
 set_id8	KEYWORD2
 set_hash_id8	KEYWORD2
 set_key	KEYWORD2
+set_id_key	KEYWORD2
 setTime	KEYWORD2
 refreshTime	KEYWORD2
 getUnixTime	KEYWORD2
@@ -31,7 +32,6 @@ encryptPack	KEYWORD2
 decryptPack	KEYWORD2
 encrypt_e2e	KEYWORD2
 decrypt_e2e	KEYWORD2
-login	KEYWORD2
 auth_req	KEYWORD2
 auth_hmac	KEYWORD2
 check_auth_ack_hmac	KEYWORD2
