@@ -389,7 +389,7 @@ int Boho::auth_req( uint8_t* out )
 //  store server nonce.( include unix time. )
 //  generate auth_hmac.
 //  send AUTH_HMAC packet.
-int Boho::auth_hmac( uint8_t* output, const void* auth_nonce , size_t inputLen )
+int Boho::auth_hmac( uint8_t* output, const uint8_t* auth_nonce , size_t inputLen )
 {
 
  if( inputLen != MetaSize_AUTH_NONCE ) return 0;
@@ -419,7 +419,7 @@ int Boho::auth_hmac( uint8_t* output, const void* auth_nonce , size_t inputLen )
 // server send  AUTH_ACK or AUTH_FAIL
 
 // 5. client check server AUTH_ACK (cross check.)
-bool Boho::check_auth_ack_hmac( const void* auth_ack, size_t inputLen )
+bool Boho::check_auth_ack_hmac( const uint8_t* auth_ack, size_t inputLen )
 {
    if( inputLen != MetaSize_AUTH_ACK ) return false;
 

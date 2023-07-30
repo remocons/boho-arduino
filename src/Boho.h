@@ -93,8 +93,8 @@ class Boho
     uint32_t decrypt_e2e(  void *out, uint8_t *in, uint32_t len , const char * key);
 
     int auth_req( uint8_t* out);
-    int auth_hmac( uint8_t* out, const void* auth_req , size_t len);
-    bool check_auth_ack_hmac( const void* auth_ack, size_t len );
+    int auth_hmac( uint8_t* out, const uint8_t* auth_req , size_t len);
+    bool check_auth_ack_hmac( const uint8_t* auth_ack, size_t len );
 
     uint32_t encrypt_488( uint8_t *out, const void *in, uint32_t len );
     uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
