@@ -1,13 +1,18 @@
 /*
   Boho.h
-  Ultra Light SSL Without PKI.
+  - Data Encryption
+  - Cryptographic authentication
+  - Secure communication
   Dongeun Lee <sixgen@gmail.com>
 */
+
 #ifndef Boho_h
 #define Boho_h
 
+#include "Arduino.h"
 #include <SHA256.h>
 #include <Crypto.h>
+#include <string.h>
 
 // USE_PSRAM: If you need large size memory on ESP boards which has PSRAM.
 // #define USE_PSRAM    

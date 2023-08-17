@@ -1,13 +1,14 @@
 # Boho for arduino
 
-- Ultra Light SSL Without PKI.
-- 'boho' means protection.
+- Encryption, authentication, Secure communication
+- `boho` means protection.
 
 ## features
-- general data encryption.
-- authentication.
-- secure communication.
-- support Arduino UNO.
+- Data Encryption.
+- Cryptographic authentication.
+- Secure communication.
+- Ultra-lightweight.
+- Supports Arduino UNO.
 
 ## applications
 - Websocket authentication, secure communication.

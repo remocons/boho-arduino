@@ -1,14 +1,12 @@
-
 /*
   Boho.cpp
-  Ultra Light SSL Without PKI.
+  - Data Encryption
+  - Cryptographic authentication
+  - Secure communication
   Dongeun Lee <sixgen@gmail.com>
 */
+
 #include "Boho.h"
-#include "Arduino.h"
-#include <SHA256.h>
-#include <Crypto.h>
-#include <string.h>
 
 Boho::Boho()
 {
