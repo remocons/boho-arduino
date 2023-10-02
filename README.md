@@ -17,8 +17,8 @@
 - local file encryption.
 
 ## libraries
-- JavaScript: Node.js , Web Browser. [ [github](https://github.com/congtrol/boho) ] 
-- C/C++: Arduino [ [github](https://github.com/congtrol/boho-arduino) ]
+- JavaScript: Node.js , Web Browser. [ [github](https://github.com/remocons/boho) ] 
+- C/C++: Arduino [ [github](https://github.com/remocons/boho-arduino) ]
 
 
 ## license
