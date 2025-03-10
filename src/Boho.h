@@ -3,7 +3,7 @@
   - Data Encryption
   - Cryptographic authentication
   - Secure communication
-  Dongeun Lee <sixgen@gmail.com>
+  Taeo Lee <sixgen@gmail.com>
 */
 
 #ifndef Boho_h
