@@ -8,7 +8,6 @@
 - Cryptographic authentication.
 - Secure communication.
 - Ultra-lightweight.
-- Supports Arduino UNO.
 
 ## applications
 - Websocket authentication, secure communication.

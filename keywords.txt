@@ -38,6 +38,7 @@ check_auth_ack_hmac	KEYWORD2
 encrypt_488	KEYWORD2
 decrypt_488	KEYWORD2
 
+dynamic_alloc	KEYWORD2
 boho_print_time	KEYWORD2
 boho_print_hex	KEYWORD2
 boho_index_print_hex	KEYWORD2

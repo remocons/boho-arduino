@@ -5,7 +5,7 @@ Boho boho;
 void setup()
 {
   Serial.begin(115200);
-  boho.setTime(86350 ); // set unixtime value.
+  boho.setTime(86390 ); // set unixtime value.
 }
 
 

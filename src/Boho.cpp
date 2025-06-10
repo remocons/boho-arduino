@@ -6,6 +6,12 @@
   Taeo Lee <sixgen@gmail.com>
 */
 
+#if defined(ESP32)
+  #include "esp_heap_caps.h"     // PSRAM 할당 등 ESP32 전용
+  #include "esp32-hal-psram.h"
+#endif
+
+
 #include "Boho.h"
 
 Boho::Boho()
@@ -126,12 +132,8 @@ bool Boho::generateHMAC(  const void* data, uint32_t dataLen )
 {
 
   uint8_t *tmp = NULL;
+  tmp = (uint8_t *)dynamic_alloc( dataLen + 44);
 
-  #ifdef USE_PSRAM
-    tmp = (uint8_t *)ps_malloc( dataLen + 44);
-  #else
-    tmp = (uint8_t *)malloc( dataLen + 44);
-  #endif
   if( tmp == NULL ) return false;
 
   memcpy( tmp , _otpSrc44 , 44 ); // mainKey area
@@ -435,6 +437,19 @@ bool Boho::check_auth_ack_hmac( const uint8_t* auth_ack, size_t inputLen )
 
   isAuthorized = true;
   return true;
+}
+
+void* dynamic_alloc(size_t size) {
+  #if defined(ESP32)
+    if (psramFound()) {
+      return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    } else {
+      return malloc(size);
+    }
+  #else
+    return malloc(size);
+  #endif
+
 }
 
 

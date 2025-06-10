@@ -8,7 +8,7 @@ char plainData[SIZE];
 uint8_t encData[SIZE + MetaSize_ENC_PACK ]; // !! encoded data pack size will be incresed.
 char decData[SIZE ];  
 
-uint32_t txCounter = 0;
+int txCounter = 0;
 
 void setup()
 {

@@ -13,9 +13,11 @@
 #include <SHA256.h>
 #include <Crypto.h>
 #include <string.h>
+#if defined(ESP32)
+  #include "esp_heap_caps.h"     // PSRAM 할당 등 ESP32 전용
+  #include "esp32-hal-psram.h"
+#endif
 
-// USE_PSRAM: If you need large size memory on ESP boards which has PSRAM.
-// #define USE_PSRAM    
 
 #define MetaSize_AUTH_REQ 2
 #define MetaSize_AUTH_NONCE 13
@@ -34,6 +36,7 @@ void boho_print_hex( const void* titleStr, const void* data, size_t len);
 void boho_index_print_hex( int num , char* titleStr, uint8_t* data, size_t len);
 void boho_convert_hex( char* out, const void* data, size_t len);
 
+void* dynamic_alloc(size_t size);
 
 /*
     Boho Authentication Process.
@@ -114,7 +117,8 @@ class Boho
     uint8_t _hmac[32];
     union u32buf4 remoteNonce , localNonce;
     union u32buf4 secTime, milTime , microTime;
-    uint32_t  lastSetMilTime; 
+    uint32_t  lastSetMilTime;
+    
 };
 
 #endif
