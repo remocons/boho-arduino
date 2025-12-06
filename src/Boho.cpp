@@ -18,11 +18,12 @@ Boho::Boho()
 {
   hash = new SHA256();
   secTime.u32 = 0;
-  milTime.u32 = 0;
+  milTime.u16 = 0;
+  counter.u16 = 0;
   microTime.u32 = 0;
   remoteNonce.u32 = 0;
   localNonce.u32 = 0;
-  lastSetMilTime = millis();
+  lastTime = millis();
 }
 
 void Boho::clearAuth(void)
@@ -86,38 +87,43 @@ void Boho::set_id_key(const char* id_key )
   set_key( (void *)(id_key + i) ,  len - i);
 }
 
-void  Boho::setTime( uint32_t utc ){
+void  Boho::setTime( uint32_t utc , uint16_t millis ){
   secTime.u32 = utc;
-  milTime.u32 = 0;
-  lastSetMilTime = millis();
+  milTime.u16 = millis;
 }
 
-// refresh internal time.
+// Refresh internal Unix time.
 void  Boho::refreshTime( void){
-      uint32_t milNow = millis();
+      uint32_t now = millis();
       uint32_t delta;
 
-      if( milNow == lastSetMilTime ){ 
+      counter.u16++;
+      if( now == lastTime ){ 
         //too short period refresh
         return;
-      }else if( milNow > lastSetMilTime ){
-        delta = milNow - lastSetMilTime; 
+      }else if( now > lastTime ){
+        delta = now - lastTime; 
       }else{ 
         // overflow: period is about 49 days 17 hours.
-        delta = milNow + (0xffffffff - lastSetMilTime) ;
+        delta = now + (0xffffffff - lastTime) ;
       }
-      lastSetMilTime = milNow;
+      lastTime = now;
 
-      // // deltaSec delteMil
-      delta += milTime.u32; 
-      secTime.u32 += (uint32_t)( (float)delta / 1000);  
-      milTime.u32 = delta % 1000;
-
+    // Add last kept millisecond remainder
+    delta += milTime.u16;
+    // Add seconds
+    secTime.u32 += delta / 1000;
+    // Keep remainder (0~999)
+    milTime.u16 = delta % 1000;
   }
 
 uint32_t Boho::getUnixTime()
 {
   return secTime.u32;
+}
+uint16_t Boho::getMilTime()
+{
+  return milTime.u16;
 }
 
 void Boho::setHash( void* result, const void* data, size_t len)
@@ -143,8 +149,6 @@ bool Boho::generateHMAC(  const void* data, uint32_t dataLen )
   return true;
 }
 
-
-
 void Boho::set_salt12( const void* data )
 {
   memcpy( _otpSrc44 + 32, data , 12);
@@ -155,8 +159,9 @@ void Boho::set_clock_rand( void)
   refreshTime();
   microTime.u32 = micros();  
   memcpy( _otpSrc44 + 32, secTime.buf , 4);
-  memcpy( _otpSrc44 + 36, milTime.buf , 4);
-  memcpy( _otpSrc44 + 40, microTime.buf  , 4);
+  memcpy( _otpSrc44 + 36, milTime.buf , 2);
+  memcpy( _otpSrc44 + 38, counter.buf , 2);
+  memcpy( _otpSrc44 + 40, microTime.buf  , 4);  // JS: use crypto.getRandomValues(),  Arduino: use micros()
 }
 
 
@@ -164,7 +169,8 @@ void Boho::set_clock_nonce( const void* nonce)
 {
   refreshTime();
   memcpy( _otpSrc44 + 32, secTime.buf , 4);
-  memcpy( _otpSrc44 + 36, milTime.buf , 4);
+  memcpy( _otpSrc44 + 36, milTime.buf , 2);
+  memcpy( _otpSrc44 + 38, counter.buf , 2);
   memcpy( _otpSrc44 + 40, nonce  , 4);
 }
 
@@ -267,6 +273,7 @@ uint32_t Boho::decryptPack(  void *output, uint8_t *input, uint32_t inputLen )
 uint32_t Boho::encrypt_e2e( uint8_t *output, const void *input, uint32_t inputLen , const char * key )
 {
 
+  if( !isAuthorized ) return 0;
   // backup base key
   uint8_t authKeyBackup[32];
   memcpy( authKeyBackup, _otpSrc44, 32);
@@ -374,54 +381,41 @@ uint32_t Boho::decrypt_488(void *output, uint8_t *input,  uint32_t inputLen )
 }
 
 
-// 1. client send AUTH_REQ
-int Boho::auth_req( uint8_t* out )
-{
-  out[0] = Boho::MsgType::AUTH_REQ;
-  out[1] = 0; //reserved
-  return 2;
-}
-
-// 2. server send AUTH_NONCE. (include server unix time.)
-
-// 3 client
-//  reveive AUTH_NONCE.
-//  store server nonce.( include unix time. )
-//  generate auth_hmac.
-//  send AUTH_HMAC packet.
-int Boho::auth_hmac( uint8_t* output, const uint8_t* auth_nonce , size_t inputLen )
+int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t inputLen )
 {
 
- if( inputLen != MetaSize_AUTH_NONCE ) return 0;
+ if( inputLen != MetaSize_SERVER_TIME_NONCE ) return 0;
 
-  memcpy( secTime.buf, auth_nonce + 1 , 4);
-  memcpy( milTime.buf, auth_nonce + 5 , 4);
-  lastSetMilTime = millis(); // MUST : reset after change time.
+  // arduino time(sec,mil) reset with server_time
+  memcpy( secTime.buf, server_time_nonce + 1 , 4);
+  memcpy( milTime.buf, server_time_nonce + 5 , 2);
+  memcpy( counter.buf, server_time_nonce + 7 , 2); 
+  lastTime = millis(); // MUST : reset after change time. to check delta time.
 
-  memcpy( remoteNonce.buf, auth_nonce + 9 , 4);
+  memcpy( remoteNonce.buf, server_time_nonce + 9 , 4);
 
-  set_salt12( auth_nonce + 1 ); //read 12bytes from auth_nonce
+  set_salt12( server_time_nonce + 1 ); //read 12bytes from server_time_nonce
   localNonce.u32 = micros(); //generate localNonce
   
   if( !generateHMAC( localNonce.buf, 4 ) ) return 0;
 
-  output[0] = Boho::MsgType::AUTH_HMAC;
+  output[0] = Boho::MsgType::AUTH_REQ;
   
   memcpy( output + 1 , _id8 , 8); 
   memcpy( output + 9, localNonce.buf, 4 ); 
   memcpy( output + 13 , _hmac , 32 );    
   
-  return MetaSize_AUTH_HMAC; 
+  return MetaSize_AUTH_REQ; 
 }
 
 // 4. 
 // server check client hmac
-// server send  AUTH_ACK or AUTH_FAIL
+// server send  AUTH_RES or AUTH_FAIL
 
-// 5. client check server AUTH_ACK (cross check.)
-bool Boho::check_auth_ack_hmac( const uint8_t* auth_ack, size_t inputLen )
+// 5. client check server AUTH_RES (cross check.)
+bool Boho::verify_auth_res( const uint8_t* auth_ack, size_t inputLen )
 {
-   if( inputLen != MetaSize_AUTH_ACK ) return false;
+   if( inputLen != MetaSize_AUTH_RES ) return false;
 
   uint8_t hmacSrc[12];
   memcpy( hmacSrc, remoteNonce.buf , 4);
@@ -454,19 +448,38 @@ void* dynamic_alloc(size_t size) {
 
 
 // simple serial print debugger
+void boho_print_time(uint32_t secTime, uint16_t ms)
+{
+    // Convert Unix time to HH:MM:SS (0~23h cycle)
+    secTime %= 86400;  // seconds in a day
 
-void boho_print_time( uint32_t secTime ){
-    secTime %= 86400; 
-    uint32_t sec = secTime % 60;  
-    secTime -= sec;  
-    uint32_t min = secTime / 60 ;
-    min %= 60;
-    secTime -= ( min * 60 );
+    uint32_t sec = secTime % 60;
+    uint32_t min = (secTime / 60) % 60;
     uint32_t hour = secTime / 3600;
-    char tmp[30]={0};
-    sprintf( tmp, "[%02u:%02u:%02u]\n", ( uint8_t)hour, ( uint8_t) min, ( uint8_t)sec );
-    Serial.write( tmp );
+
+    char tmp[40] = {0};
+    
+    // Include milliseconds (0~999)
+    sprintf(tmp, "[%02u:%02u:%02u.%03u]\n",
+            (uint8_t)hour,
+            (uint8_t)min,
+            (uint8_t)sec,
+            (uint16_t)ms);
+
+    Serial.write(tmp);
 }
+// void boho_print_time( uint32_t secTime ){
+//     secTime %= 86400; 
+//     uint32_t sec = secTime % 60;  
+//     secTime -= sec;  
+//     uint32_t min = secTime / 60 ;
+//     min %= 60;
+//     secTime -= ( min * 60 );
+//     uint32_t hour = secTime / 3600;
+//     char tmp[30]={0};
+//     sprintf( tmp, "[%02u:%02u:%02u]\n", ( uint8_t)hour, ( uint8_t) min, ( uint8_t)sec );
+//     Serial.write( tmp );
+// }
 
 
 void boho_print_hex( const void* titleStr, const void* data, size_t len){

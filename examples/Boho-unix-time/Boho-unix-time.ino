@@ -11,9 +11,9 @@ void setup()
 
 void loop(){
   boho.refreshTime(); 
-  Serial.print( "UNIX TIME: ");
+  Serial.print( "UNIX_TIME: ");
   Serial.print( boho.getUnixTime() );  // print uint32_t number.
-  boho_print_time( boho.getUnixTime() ); // print HH:MM:SS format.
-  delay(800);
+  boho_print_time( boho.getUnixTime(), boho.getMilTime() ); // print HH:MM:SS:mm format.
+  delay(90);
 }
 

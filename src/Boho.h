@@ -19,10 +19,9 @@
 #endif
 
 
-#define MetaSize_AUTH_REQ 2
-#define MetaSize_AUTH_NONCE 13
-#define MetaSize_AUTH_HMAC 45
-#define MetaSize_AUTH_ACK 33
+#define MetaSize_SERVER_TIME_NONCE 13
+#define MetaSize_AUTH_REQ 45
+#define MetaSize_AUTH_RES 33
 #define MetaSize_ENC_PACK 25
 #define MetaSize_ENC_488 21
 
@@ -31,38 +30,22 @@ union u32buf4{  uint32_t u32;  uint8_t buf[4]; };  // Union: uint32 & 4bytes buf
 union u16buf2{  uint16_t u16;  uint8_t buf[2]; };  // Union: uint16 & 2bytes buffer
 
 // simple serial print debugger
-void boho_print_time( uint32_t secTime );
+void boho_print_time( uint32_t secTime, uint16_t ms = 0 );
 void boho_print_hex( const void* titleStr, const void* data, size_t len);
 void boho_index_print_hex( int num , char* titleStr, uint8_t* data, size_t len);
 void boho_convert_hex( char* out, const void* data, size_t len);
 
 void* dynamic_alloc(size_t size);
 
-/*
-    Boho Authentication Process.
-    client <<-AUTH_PACK->> server
-    1. auth_req() // client send auth_request 
-      AUTH_REQ >>
-    2. auth_nonce() //server send server nonce
-      << AUTH_NONCE 
-    3. auth_hmac( AUTH_NONCE) //client send  hmac with server nonce
-      AUTH_HMAC >>
-    4. check_auth_hmac( AUTH_HMAC )  //server verify client.
-      << AUTH_ACK or AUTH_FAIL
-    5. check_auth_ack_hmac( AUTH_ACK )  //client verify server.
-*/
-
 class Boho
 {
   public:
     enum MsgType : uint8_t{
-      AUTH_REQ = 0xB0,
-      AUTH_NONCE,
-      AUTH_HMAC,
-      AUTH_ACK,
+      SERVER_TIME_NONCE = 0xB0,
+      AUTH_REQ,
+      AUTH_RES,
       AUTH_FAIL,
-      AUTH_EXT,
-      ENC_PACK, 
+      ENC_PACK = 0xB6, 
       ENC_E2E,  
       ENC_488,   
     };
@@ -78,9 +61,10 @@ class Boho
     void set_key(const void* data, size_t len );
     void set_id_key(const char* id_key );
 
-    void setTime( uint32_t utc );
+    void setTime( uint32_t utc, uint16_t ms = 0);
     void refreshTime( void );
     uint32_t getUnixTime();
+    uint16_t getMilTime();
 
     void set_salt12(const void *salt12 );
     void set_clock_rand( void);
@@ -101,8 +85,8 @@ class Boho
     uint32_t decrypt_e2e(  void *out, uint8_t *in, uint32_t len , const char * key);
 
     int auth_req( uint8_t* out);
-    int auth_hmac( uint8_t* out, const uint8_t* auth_req , size_t len);
-    bool check_auth_ack_hmac( const uint8_t* auth_ack, size_t len );
+    int auth_req( uint8_t* out, const uint8_t* server_time_nonce , size_t len);
+    bool verify_auth_res( const uint8_t* auth_res, size_t len );
 
     uint32_t encrypt_488( uint8_t *out, const void *in, uint32_t len );
     uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
@@ -116,8 +100,10 @@ class Boho
     uint8_t _otp36[36]={0};
     uint8_t _hmac[32];
     union u32buf4 remoteNonce , localNonce;
-    union u32buf4 secTime, milTime , microTime;
-    uint32_t  lastSetMilTime;
+    union u32buf4 secTime , microTime;
+    union u16buf2 milTime;
+    union u16buf2 counter;
+    uint32_t lastTime;
     
 };
 
