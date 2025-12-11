@@ -18,6 +18,7 @@ set_hash_id8	KEYWORD2
 set_key	KEYWORD2
 set_id_key	KEYWORD2
 setTime	KEYWORD2
+setClientTimeToServerTime	KEYWORD2
 refreshTime	KEYWORD2
 getUnixTime	KEYWORD2
 getMilTime	KEYWORD2

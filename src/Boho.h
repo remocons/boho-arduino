@@ -1,10 +1,12 @@
 /*
-  Boho.h
-  - Data Encryption
-  - Cryptographic authentication
-  - Secure communication
-  Taeo Lee <sixgen@gmail.com>
-*/
+ * Boho.h — Cryptography Module
+ * 
+ * - Data encryption
+ * - Encrypted Client–Server Authentication
+ * - Secure communication
+ *
+ * Author: Taeo Lee <sixgen@gmail.com>
+ */
 
 #ifndef Boho_h
 #define Boho_h
@@ -14,17 +16,15 @@
 #include <Crypto.h>
 #include <string.h>
 #if defined(ESP32)
-  #include "esp_heap_caps.h"     // PSRAM 할당 등 ESP32 전용
+  #include "esp_heap_caps.h"
   #include "esp32-hal-psram.h"
 #endif
-
 
 #define MetaSize_SERVER_TIME_NONCE 13
 #define MetaSize_AUTH_REQ 45
 #define MetaSize_AUTH_RES 33
 #define MetaSize_ENC_PACK 25
 #define MetaSize_ENC_488 21
-
 
 union u32buf4{  uint32_t u32;  uint8_t buf[4]; };  // Union: uint32 & 4bytes buffer
 union u16buf2{  uint16_t u16;  uint8_t buf[2]; };  // Union: uint16 & 2bytes buffer
@@ -50,7 +50,6 @@ class Boho
       ENC_488,   
     };
 
-
     Boho( void);
     void clearAuth(void);
     void set_id8(const char* data );
@@ -62,6 +61,7 @@ class Boho
     void set_id_key(const char* id_key );
 
     void setTime( uint32_t utc, uint16_t ms = 0);
+    void setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t len);
     void refreshTime( void );
     uint32_t getUnixTime();
     uint16_t getMilTime();
@@ -69,28 +69,23 @@ class Boho
     void set_salt12(const void *salt12 );
     void set_clock_rand( void);
     void set_clock_nonce( const void* nonce);
-
     void resetOTP(void);
     void generateIndexOTP( uint8_t* iotp, uint32_t otpIndex );
-
     bool generateHMAC( const void* data, uint32_t dataLen );
-
     void xotp( uint8_t* data, uint32_t len );
     void setHash( void* result, const void* data, size_t len);
 
     uint32_t encryptPack( uint8_t *out, const void *in, uint32_t len );
     uint32_t decryptPack(  void *out, uint8_t *in, uint32_t len );
-
     uint32_t encrypt_e2e( uint8_t *out, const void *in, uint32_t len , const char * key);
     uint32_t decrypt_e2e(  void *out, uint8_t *in, uint32_t len , const char * key);
+    uint32_t encrypt_488( uint8_t *out, const void *in, uint32_t len );
+    uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
 
-    int auth_req( uint8_t* out);
+    int auth_req( uint8_t* );
     int auth_req( uint8_t* out, const uint8_t* server_time_nonce , size_t len);
     bool verify_auth_res( const uint8_t* auth_res, size_t len );
 
-    uint32_t encrypt_488( uint8_t *out, const void *in, uint32_t len );
-    uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
-    
     bool isAuthorized = false;
 
   private:

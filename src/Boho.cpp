@@ -1,16 +1,17 @@
 /*
-  Boho.cpp
-  - Data Encryption
-  - Cryptographic authentication
-  - Secure communication
-  Taeo Lee <sixgen@gmail.com>
-*/
+ * Boho.cpp — Cryptography Module
+ * 
+ * - Data encryption
+ * - Encrypted Client–Server Authentication
+ * - Secure communication
+ *
+ * Author: Taeo Lee <sixgen@gmail.com>
+ */
 
 #if defined(ESP32)
-  #include "esp_heap_caps.h"     // PSRAM 할당 등 ESP32 전용
+  #include "esp_heap_caps.h"
   #include "esp32-hal-psram.h"
 #endif
-
 
 #include "Boho.h"
 
@@ -87,12 +88,6 @@ void Boho::set_id_key(const char* id_key )
   set_key( (void *)(id_key + i) ,  len - i);
 }
 
-void  Boho::setTime( uint32_t utc , uint16_t millis ){
-  secTime.u32 = utc;
-  milTime.u16 = millis;
-}
-
-// Refresh internal Unix time.
 void  Boho::refreshTime( void){
       uint32_t now = millis();
       uint32_t delta;
@@ -121,6 +116,7 @@ uint32_t Boho::getUnixTime()
 {
   return secTime.u32;
 }
+
 uint16_t Boho::getMilTime()
 {
   return milTime.u16;
@@ -133,10 +129,8 @@ void Boho::setHash( void* result, const void* data, size_t len)
   hash->finalize( result, 32);
 }
 
-
 bool Boho::generateHMAC(  const void* data, uint32_t dataLen )
 {
-
   uint8_t *tmp = NULL;
   tmp = (uint8_t *)dynamic_alloc( dataLen + 44);
 
@@ -273,7 +267,6 @@ uint32_t Boho::decryptPack(  void *output, uint8_t *input, uint32_t inputLen )
 uint32_t Boho::encrypt_e2e( uint8_t *output, const void *input, uint32_t inputLen , const char * key )
 {
 
-  if( !isAuthorized ) return 0;
   // backup base key
   uint8_t authKeyBackup[32];
   memcpy( authKeyBackup, _otpSrc44, 32);
@@ -380,27 +373,35 @@ uint32_t Boho::decrypt_488(void *output, uint8_t *input,  uint32_t inputLen )
   return payloadSize;
 }
 
+void  Boho::setTime( uint32_t utc , uint16_t millis ){
+  secTime.u32 = utc;
+  milTime.u16 = millis;
+}
+
+void Boho::setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t inputLen )
+{
+  if( inputLen != MetaSize_SERVER_TIME_NONCE ) return;
+  memcpy( secTime.buf, server_time_nonce + 1 , 4);
+  memcpy( milTime.buf, server_time_nonce + 5 , 2);
+  lastTime = millis();
+}
 
 int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t inputLen )
 {
 
  if( inputLen != MetaSize_SERVER_TIME_NONCE ) return 0;
-
-  // arduino time(sec,mil) reset with server_time
   memcpy( secTime.buf, server_time_nonce + 1 , 4);
   memcpy( milTime.buf, server_time_nonce + 5 , 2);
   memcpy( counter.buf, server_time_nonce + 7 , 2); 
-  lastTime = millis(); // MUST : reset after change time. to check delta time.
-
+  lastTime = millis();
   memcpy( remoteNonce.buf, server_time_nonce + 9 , 4);
 
   set_salt12( server_time_nonce + 1 ); //read 12bytes from server_time_nonce
-  localNonce.u32 = micros(); //generate localNonce
+  localNonce.u32 = micros();
   
   if( !generateHMAC( localNonce.buf, 4 ) ) return 0;
 
   output[0] = Boho::MsgType::AUTH_REQ;
-  
   memcpy( output + 1 , _id8 , 8); 
   memcpy( output + 9, localNonce.buf, 4 ); 
   memcpy( output + 13 , _hmac , 32 );    
@@ -408,27 +409,18 @@ int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t i
   return MetaSize_AUTH_REQ; 
 }
 
-// 4. 
-// server check client hmac
-// server send  AUTH_RES or AUTH_FAIL
-
-// 5. client check server AUTH_RES (cross check.)
 bool Boho::verify_auth_res( const uint8_t* auth_ack, size_t inputLen )
 {
-   if( inputLen != MetaSize_AUTH_RES ) return false;
-
+  if( inputLen != MetaSize_AUTH_RES ) return false;
   uint8_t hmacSrc[12];
   memcpy( hmacSrc, remoteNonce.buf , 4);
   memcpy( hmacSrc + 4 , localNonce.buf , 4);
   memcpy( hmacSrc + 8, remoteNonce.buf , 4);
-
   set_salt12( hmacSrc ); 
   if( !generateHMAC( localNonce.buf , 4 )) return false;
-
   if( memcmp(_hmac, auth_ack + 1 , 32 ) != 0 ){
     return false;
   }
-
   isAuthorized = true;
   return true;
 }
@@ -443,22 +435,19 @@ void* dynamic_alloc(size_t size) {
   #else
     return malloc(size);
   #endif
-
 }
 
 
 // simple serial print debugger
 void boho_print_time(uint32_t secTime, uint16_t ms)
 {
-    // Convert Unix time to HH:MM:SS (0~23h cycle)
+    // Convert Unix time to HH:MM:SS
     secTime %= 86400;  // seconds in a day
-
     uint32_t sec = secTime % 60;
     uint32_t min = (secTime / 60) % 60;
     uint32_t hour = secTime / 3600;
 
     char tmp[40] = {0};
-    
     // Include milliseconds (0~999)
     sprintf(tmp, "[%02u:%02u:%02u.%03u]\n",
             (uint8_t)hour,
@@ -468,19 +457,6 @@ void boho_print_time(uint32_t secTime, uint16_t ms)
 
     Serial.write(tmp);
 }
-// void boho_print_time( uint32_t secTime ){
-//     secTime %= 86400; 
-//     uint32_t sec = secTime % 60;  
-//     secTime -= sec;  
-//     uint32_t min = secTime / 60 ;
-//     min %= 60;
-//     secTime -= ( min * 60 );
-//     uint32_t hour = secTime / 3600;
-//     char tmp[30]={0};
-//     sprintf( tmp, "[%02u:%02u:%02u]\n", ( uint8_t)hour, ( uint8_t) min, ( uint8_t)sec );
-//     Serial.write( tmp );
-// }
-
 
 void boho_print_hex( const void* titleStr, const void* data, size_t len){
   Serial.write( (char* )titleStr);
@@ -493,7 +469,6 @@ void boho_print_hex( const void* titleStr, const void* data, size_t len){
   }
   Serial.write("\n");
 }
-
 
 void boho_index_print_hex( int num , char* titleStr, uint8_t* data, size_t len){
   char tmp[6] = {0};
