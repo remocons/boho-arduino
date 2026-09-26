@@ -36,14 +36,19 @@ void Boho::clearAuth(void)
   memset( localNonce.buf, 0, 4);
   memset( remoteNonce.buf, 0, 4);
   isAuthorized = false;
+  hasKey = false;
+  hasChallenge = false;
+  memset(serverChallenge, 0, sizeof(serverChallenge));
 }
 
 // accept max 8 chars.
 void Boho::set_id8(const char* data )
 {
-  int len = strlen(data) ;
-  if( len > 8 ) len = 8;
-  memcpy( _id8 , data, len);
+  memset(_id8, 0, sizeof(_id8));
+  if (!data) return;
+  size_t len = 0;
+  while (len < sizeof(_id8) && data[len]) ++len;
+  memcpy(_id8, data, len);
 }
 
 void Boho::set_hash_id8(const char* data )
@@ -62,55 +67,49 @@ void Boho::set_hash_id8(const void* data, size_t len)
 
 void Boho::set_key(const char*data )
 {
-  set_key( data, strlen(data));
+  set_key(data, data ? strlen(data) : 0);
 }
 
 void Boho::set_key(const void* data, size_t len )
 {
+  if (!data || !len) {
+    memset(_otpSrc44, 0, sizeof(_otpSrc44));
+    hasKey = false;
+    isAuthorized = false;
+    return;
+  }
   hash->reset();
-  hash->update( data, len);
-  hash->finalize( _otpSrc44, 32);
+  hash->update(data, len);
+  hash->finalize(_otpSrc44, 32);
+  hasKey = true;
 }
 
 void Boho::set_id_key(const char* id_key )
 {
-  int len = strlen(id_key);
-  char id[8] = { 0 };
-  int i;
-  for( i = 0; i<8; i++){
-    if(id_key[i] == '.'){
-      i++;
-      break;
-    }
-    id[i] = id_key[i];
+  if (!id_key) { clearAuth(); return; }
+  const char *dot = strchr(id_key, '.');
+  if (!dot || dot == id_key || dot - id_key > 8 || !dot[1]) {
+    clearAuth();
+    return;
   }
+  char id[9] = {0};
+  memcpy(id, id_key, dot - id_key);
   set_id8(id);
-  set_key( (void *)(id_key + i) ,  len - i);
+  set_key(dot + 1);
 }
 
-void  Boho::refreshTime( void){
-      uint32_t now = millis();
-      uint32_t delta;
-
-      counter.u16++;
-      if( now == lastTime ){ 
-        //too short period refresh
-        return;
-      }else if( now > lastTime ){
-        delta = now - lastTime; 
-      }else{ 
-        // overflow: period is about 49 days 17 hours.
-        delta = now + (0xffffffff - lastTime) ;
-      }
-      lastTime = now;
-
-    // Add last kept millisecond remainder
-    delta += milTime.u16;
-    // Add seconds
-    secTime.u32 += delta / 1000;
-    // Keep remainder (0~999)
-    milTime.u16 = delta % 1000;
-  }
+void  Boho::refreshTime( void)
+{
+  const uint32_t now = millis();
+  const uint32_t delta = now - lastTime; // unsigned subtraction includes rollover
+  lastTime = now;
+  ++counter.u16;
+  // Split before adding the remainder to avoid a uint32_t overflow.
+  secTime.u32 += delta / 1000;
+  const uint16_t remainder = milTime.u16 + delta % 1000;
+  secTime.u32 += remainder / 1000;
+  milTime.u16 = remainder % 1000;
+}
 
 uint32_t Boho::getUnixTime()
 {
@@ -131,15 +130,11 @@ void Boho::setHash( void* result, const void* data, size_t len)
 
 bool Boho::generateHMAC(  const void* data, uint32_t dataLen )
 {
-  uint8_t *tmp = NULL;
-  tmp = (uint8_t *)dynamic_alloc( dataLen + 44);
-
-  if( tmp == NULL ) return false;
-
-  memcpy( tmp , _otpSrc44 , 44 ); // mainKey area
-  memcpy( tmp + 44 , data , dataLen );
-  setHash( _hmac , tmp, 44 + dataLen );
-  free(tmp);
+  if (!hasKey || (!data && dataLen) || dataLen > (uint32_t)((size_t)-1)) return false;
+  hash->reset();
+  hash->update(_otpSrc44, sizeof(_otpSrc44));
+  if (dataLen) hash->update(data, (size_t)dataLen);
+  hash->finalize(_hmac, sizeof(_hmac));
   return true;
 }
 
@@ -187,37 +182,29 @@ void Boho::generateIndexOTP( uint8_t* iotp, uint32_t otpIndex )
 
 void Boho::xotp( uint8_t* data, uint32_t dataLen  )
 {
-  int len = dataLen;
   uint32_t otpIndex = 0;
-  
-  int dataOffset = 0;
-  int xorCalcLen = 0;
-
   uint8_t iotp[32];
-    
-  while( len > 0 ){
-    xorCalcLen = len < 32 ? len : 32;
-    generateIndexOTP(iotp, ++otpIndex );
-   
-    for(int i = 0; i< xorCalcLen; i++){
-      data[dataOffset++] ^= iotp[i];
-    }
-    len -= 32;
+  while (dataLen) {
+    const uint8_t count = dataLen < 32 ? dataLen : 32;
+    generateIndexOTP(iotp, ++otpIndex);
+    for (uint8_t i = 0; i < count; ++i) *data++ ^= iotp[i];
+    dataLen -= count;
   }
-
 }
 
 
 
 uint32_t Boho::encryptPack( uint8_t *output, const void *input, uint32_t inputLen )
 {
+  if (!hasKey || !output || (!input && inputLen) || inputLen > (uint32_t)((size_t)-1) - MetaSize_ENC_PACK) return 0;
+
 
   set_clock_rand();
   resetOTP();
 
   if( !generateHMAC( input, inputLen ) ) return 0;
   
-  memcpy( output + MetaSize_ENC_PACK , input , inputLen);
+  if (inputLen) memmove(output + MetaSize_ENC_PACK, input, inputLen);
   xotp( (uint8_t *)(output + MetaSize_ENC_PACK), inputLen );
   output[0] = Boho::MsgType::ENC_PACK;
 
@@ -233,81 +220,38 @@ uint32_t Boho::encryptPack( uint8_t *output, const void *input, uint32_t inputLe
 
 uint32_t Boho::decryptPack(  void *output, uint8_t *input, uint32_t inputLen )
 {
-
-  if( input[0] != Boho::MsgType::ENC_PACK ){
-    // Serial.print("#Invalid msgType: ");
-    return 0;
-  }
-
-  u32buf4 dLen;
-  memcpy( dLen.buf, input + 1, 4 );
-  int payloadSize = dLen.u32;
-  if( payloadSize != inputLen - MetaSize_ENC_PACK ){
-    // Serial.print("#Invalid size: ");
-    return 0; 
-  }
-
-  set_salt12( input + 5 );   // salt begin.  // 3->5
-  resetOTP();
-
-  memcpy( output, input + MetaSize_ENC_PACK , payloadSize);
-  xotp( (uint8_t *)output, payloadSize );
-
-  
-  if( !generateHMAC( output , payloadSize) ) return 0;
-
-  if( memcmp(_hmac, input + 17 , 8) != 0 ){  
-    // Serial.print("#Invalid HMAC: ");
-    return 0;
-  }
-  
-  return payloadSize;
+  uint32_t length = 0;
+  decryptPack(output, input, inputLen, length);
+  return length;
 }
 
 uint32_t Boho::encrypt_e2e( uint8_t *output, const void *input, uint32_t inputLen , const char * key )
 {
-
-  // backup base key
-  uint8_t authKeyBackup[32];
-  memcpy( authKeyBackup, _otpSrc44, 32);
-
-  // set temporary key.
-  set_key( key);
-
-  uint32_t packSize = encryptPack( output, input, inputLen );
-
-  // restore base key
-  memcpy( _otpSrc44,  authKeyBackup, 32);
-  
-  return packSize;
-
+  if (!key || !*key) return 0;
+  uint8_t backup[32];
+  memcpy(backup, _otpSrc44, 32);
+  const bool previousKey = hasKey;
+  set_key(key);
+  const uint32_t size = encryptPack(output, input, inputLen);
+  memcpy(_otpSrc44, backup, 32);
+  hasKey = previousKey;
+  memset(backup, 0, sizeof(backup));
+  return size;
 }
 
 
 uint32_t Boho::decrypt_e2e(  void *output, uint8_t *input, uint32_t inputLen , const char * key )
 {
-
-  if( input[0] != Boho::MsgType::ENC_PACK ){
-    return 0;
-  }
-
-  // backup base key
-  uint8_t authKeyBackup[32];
-  memcpy( authKeyBackup, _otpSrc44, 32);
-  
-  // set temporary key.
-  set_key( key);
-
-  uint32_t packSize = decryptPack( output, input, inputLen );
-  
-  // restore base key
-  memcpy( _otpSrc44,  authKeyBackup, 32); 
-  return packSize;
+  uint32_t length = 0;
+  decrypt_e2e(output, input, inputLen, key, length);
+  return length;
 }
 
 
 uint32_t Boho::encrypt_488( uint8_t *output, const void *input, uint32_t inputLen )
 {
+  if (!hasKey || !output || (!input && inputLen) || inputLen > (uint32_t)((size_t)-1) - MetaSize_ENC_488) return 0;
+
   if( !isAuthorized ) return 0;
 
   set_clock_nonce( remoteNonce.buf );
@@ -315,7 +259,7 @@ uint32_t Boho::encrypt_488( uint8_t *output, const void *input, uint32_t inputLe
   
   if( !generateHMAC( input, inputLen ) ) return 0;
 
-  memcpy( output + MetaSize_ENC_488 , input , inputLen  );
+  if (inputLen) memmove(output + MetaSize_ENC_488, input, inputLen);
   xotp( (uint8_t *)(output + MetaSize_ENC_488 ), inputLen );
 
   output[0] = Boho::MsgType::ENC_488;
@@ -343,57 +287,44 @@ uint32_t Boho::encrypt_488( uint8_t *output, const void *input, uint32_t inputLe
 
 uint32_t Boho::decrypt_488(void *output, uint8_t *input,  uint32_t inputLen )
 {
-  if( !isAuthorized ) return 0;
-  
-  u32buf4 pLen;
-  memcpy( pLen.buf, input+1, 4);
-  uint32_t payloadSize = pLen.u32;
-
-  // uint32_t payloadSize = input[1] + ( input[2] << 8 )  + ( input[3] << 16 )  + ( input[4] << 24 );
-  if( payloadSize > inputLen - MetaSize_ENC_488 ){
-    return 0; 
-  }
-
-  //set salt:  from retmote 8, localNonce 4
-  memcpy( _otpSrc44 + 32 , input + 5 , 8 );   // 3->5
-  memcpy( _otpSrc44 + 40 , localNonce.buf , 4 );
-  
-  resetOTP();
-
-  memcpy( output, input + MetaSize_ENC_488 , payloadSize);  // 19 -> 21
-  xotp( (uint8_t *)output, payloadSize );
-  
-  if( !generateHMAC( output , payloadSize) ) return 0;
-
-  if( memcmp(_hmac, input + 13 , 8) != 0 ){  // 11->13
-    // Serial.print("#Invalid hmac.");
-    return 0;
-  }
-  
-  return payloadSize;
+  uint32_t length = 0;
+  decrypt_488(output, input, inputLen, length);
+  return length;
 }
 
-void  Boho::setTime( uint32_t utc , uint16_t millis ){
-  secTime.u32 = utc;
-  milTime.u16 = millis;
+void  Boho::setTime( uint32_t utc , uint16_t millis )
+{
+  secTime.u32 = utc + millis / 1000;
+  milTime.u16 = millis % 1000;
+  lastTime = ::millis();
 }
 
 void Boho::setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t inputLen )
 {
-  if( inputLen != MetaSize_SERVER_TIME_NONCE ) return;
-  memcpy( secTime.buf, server_time_nonce + 1 , 4);
-  memcpy( milTime.buf, server_time_nonce + 5 , 2);
+  if (!server_time_nonce || inputLen != MetaSize_SERVER_TIME_NONCE ||
+      server_time_nonce[0] != SERVER_TIME_NONCE) return;
+  u16buf2 ms;
+  memcpy(ms.buf, server_time_nonce + 5, 2);
+  if (ms.u16 >= 1000) return;
+  if (server_time_nonce != serverChallenge) memcpy(serverChallenge, server_time_nonce, sizeof(serverChallenge));
+  hasChallenge = true;
+  memcpy(secTime.buf, server_time_nonce + 1, 4);
+  milTime = ms;
   lastTime = millis();
 }
 
 int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t inputLen )
 {
 
- if( inputLen != MetaSize_SERVER_TIME_NONCE ) return 0;
-  memcpy( secTime.buf, server_time_nonce + 1 , 4);
-  memcpy( milTime.buf, server_time_nonce + 5 , 2);
-  memcpy( counter.buf, server_time_nonce + 7 , 2); 
-  lastTime = millis();
+  if (!hasKey || !output || !server_time_nonce || inputLen != MetaSize_SERVER_TIME_NONCE ||
+     server_time_nonce[0] != SERVER_TIME_NONCE) return 0;
+  u16buf2 ms;
+  memcpy(ms.buf, server_time_nonce + 5, 2);
+  if (ms.u16 >= 1000) return 0;
+  if (server_time_nonce != serverChallenge) {
+    setClientTimeToServerTime(server_time_nonce, inputLen);
+    memcpy(counter.buf, server_time_nonce + 7, 2);
+  }
   memcpy( remoteNonce.buf, server_time_nonce + 9 , 4);
 
   set_salt12( server_time_nonce + 1 ); //read 12bytes from server_time_nonce
@@ -411,7 +342,7 @@ int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t i
 
 bool Boho::verify_auth_res( const uint8_t* auth_ack, size_t inputLen )
 {
-  if( inputLen != MetaSize_AUTH_RES ) return false;
+  if (!hasKey || !hasChallenge || !auth_ack || inputLen != MetaSize_AUTH_RES || auth_ack[0] != AUTH_RES) return false;
   uint8_t hmacSrc[12];
   memcpy( hmacSrc, remoteNonce.buf , 4);
   memcpy( hmacSrc + 4 , localNonce.buf , 4);
@@ -460,8 +391,8 @@ void boho_print_time(uint32_t secTime, uint16_t ms)
 
 void boho_print_hex( const void* titleStr, const void* data, size_t len){
   Serial.write( (char* )titleStr);
-  char tmp[6] = {0};
-  sprintf(tmp , "[%u] ", len);
+  char tmp[24] = {0};
+  snprintf(tmp, sizeof(tmp), "[%lu] ", (unsigned long)len);
   Serial.write( tmp );  
   for(int i=0; i< len; ++i){
     sprintf(tmp, "%02x",  *( (uint8_t *)data + i));
@@ -471,8 +402,8 @@ void boho_print_hex( const void* titleStr, const void* data, size_t len){
 }
 
 void boho_index_print_hex( int num , char* titleStr, uint8_t* data, size_t len){
-  char tmp[6] = {0};
-  sprintf(tmp , "#%u ", num); 
+  char tmp[24] = {0};
+  snprintf(tmp, sizeof(tmp), "#%d ", num);
   Serial.write( tmp );  
   boho_print_hex( titleStr, data, len );
 }
@@ -481,4 +412,78 @@ void boho_convert_hex( char* output, const void* input, size_t inputLen){
   for(int i=0; i< inputLen; i++){
     sprintf( output + i * 2, "%02x",  *((uint8_t* )input + i ) );
   }
+}
+// Checked overloads distinguish successful empty payloads from rejection.
+// The caller must provide output capacity for the declared plaintext length.
+bool Boho::decryptPack(void *output, const uint8_t *input, uint32_t inputLen, uint32_t &length)
+{
+  length = 0;
+  if (!hasKey || !input || inputLen < MetaSize_ENC_PACK || inputLen > (uint32_t)((size_t)-1) ||
+      input[0] != ENC_PACK) return false;
+  u32buf4 declared;
+  memcpy(declared.buf, input + 1, 4);
+  const uint32_t size = declared.u32;
+  if (size != inputLen - MetaSize_ENC_PACK || (!output && size)) return false;
+  uint8_t expected[8];
+  memcpy(expected, input + 17, 8);
+  set_salt12(input + 5);
+  resetOTP();
+  if (size) memmove(output, input + MetaSize_ENC_PACK, size);
+  xotp((uint8_t *)output, size);
+  if (!generateHMAC(output, size) || memcmp(_hmac, expected, 8)) {
+    if (size) memset(output, 0, size);
+    return false;
+  }
+  length = size;
+  return true;
+}
+
+bool Boho::decrypt_488(void *output, const uint8_t *input, uint32_t inputLen, uint32_t &length)
+{
+  length = 0;
+  if (!isAuthorized || !hasKey || !input || inputLen < MetaSize_ENC_488 || inputLen > (uint32_t)((size_t)-1) ||
+      (input[0] != ENC_488 && input[0] != ENC_E2E)) return false;
+  u32buf4 declared;
+  memcpy(declared.buf, input + 1, 4);
+  const uint32_t size = declared.u32;
+  if (size > inputLen - MetaSize_ENC_488 || (!output && size) ||
+      (input[0] == ENC_488 && size != inputLen - MetaSize_ENC_488)) return false;
+  u16buf2 ms;
+  memcpy(ms.buf, input + 9, 2);
+  if (ms.u16 >= 1000) return false;
+  uint8_t expected[8];
+  memcpy(expected, input + 13, 8);
+  memcpy(_otpSrc44 + 32, input + 5, 8);
+  memcpy(_otpSrc44 + 40, localNonce.buf, 4);
+  resetOTP();
+  if (size) memmove(output, input + MetaSize_ENC_488, size);
+  xotp((uint8_t *)output, size);
+  if (!generateHMAC(output, size) || memcmp(_hmac, expected, 8)) {
+    if (size) memset(output, 0, size);
+    return false;
+  }
+  length = size;
+  return true;
+}
+
+bool Boho::decrypt_e2e(void *output, const uint8_t *input, uint32_t inputLen,
+                       const char *key, uint32_t &length)
+{
+  length = 0;
+  if (!key || !*key) return false;
+  uint8_t backup[32];
+  memcpy(backup, _otpSrc44, 32);
+  const bool previousKey = hasKey;
+  set_key(key);
+  const bool success = decryptPack(output, input, inputLen, length);
+  memcpy(_otpSrc44, backup, 32);
+  hasKey = previousKey;
+  memset(backup, 0, sizeof(backup));
+  return success;
+}
+
+int Boho::auth_req(uint8_t *output)
+{
+  if (!hasChallenge) return 0;
+  return auth_req(output, serverChallenge, sizeof(serverChallenge));
 }

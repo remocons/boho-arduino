@@ -82,6 +82,13 @@ class Boho
     uint32_t encrypt_488( uint8_t *out, const void *in, uint32_t len );
     uint32_t decrypt_488( void *out, uint8_t *in, uint32_t len );
 
+    // Checked overloads return true for authenticated empty messages too.
+    // Output must have capacity for the declared plaintext length.
+    bool decryptPack(void *out, const uint8_t *in, uint32_t len, uint32_t &plainLen);
+    bool decrypt_488(void *out, const uint8_t *in, uint32_t len, uint32_t &plainLen);
+    bool decrypt_e2e(void *out, const uint8_t *in, uint32_t len, const char *key, uint32_t &plainLen);
+
+    // Uses the last validated SERVER_TIME_NONCE; returns 0 if none is cached.
     int auth_req( uint8_t* );
     int auth_req( uint8_t* out, const uint8_t* server_time_nonce , size_t len);
     bool verify_auth_res( const uint8_t* auth_res, size_t len );
@@ -89,6 +96,9 @@ class Boho
     bool isAuthorized = false;
 
   private:
+    bool hasKey = false;
+    bool hasChallenge = false;
+    uint8_t serverChallenge[MetaSize_SERVER_TIME_NONCE] = {0};
     Hash *hash;
     uint8_t _id8[8]={0};
     uint8_t _otpSrc44[44]={0};  // mainKey[32]+ otpSrcPublic[12]
