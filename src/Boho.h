@@ -62,6 +62,8 @@ class Boho
 
     void setTime( uint32_t utc, uint16_t ms = 0);
     void setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t len);
+    // Authenticated server packets steer this clock by at most 10%, without
+    // stepping backward. Packet layouts and explicit setTime() remain unchanged.
     void refreshTime( void );
     uint32_t getUnixTime();
     uint16_t getMilTime();
@@ -96,6 +98,18 @@ class Boho
     bool isAuthorized = false;
 
   private:
+    void observeServerClock(uint32_t seconds, uint16_t milliseconds,
+                            uint16_t sequence, uint32_t receivedAt);
+    bool serverClockActive = false;
+    bool hasServerSample = false;
+    uint64_t lastServerTimeMs = 0;
+    uint16_t lastServerCounter = 0;
+    int64_t clockCorrectionMs = 0;
+    uint8_t correctionRemainder = 0;
+    bool hasSendClock = false;
+    bool sendClockValid = true;
+    uint64_t lastSendTimeMs = 0;
+    uint16_t lastSendCounter = 0;
     bool hasKey = false;
     bool hasChallenge = false;
     uint8_t serverChallenge[MetaSize_SERVER_TIME_NONCE] = {0};

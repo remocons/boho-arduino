@@ -38,6 +38,12 @@ void Boho::clearAuth(void)
   isAuthorized = false;
   hasKey = false;
   hasChallenge = false;
+  serverClockActive = false;
+  hasServerSample = false;
+  clockCorrectionMs = 0;
+  correctionRemainder = 0;
+  hasSendClock = false;
+  sendClockValid = true;
   memset(serverChallenge, 0, sizeof(serverChallenge));
 }
 
@@ -104,9 +110,26 @@ void  Boho::refreshTime( void)
   const uint32_t delta = now - lastTime; // unsigned subtraction includes rollover
   lastTime = now;
   ++counter.u16;
-  // Split before adding the remainder to avoid a uint32_t overflow.
-  secTime.u32 += delta / 1000;
-  const uint16_t remainder = milTime.u16 + delta % 1000;
+  // Accumulate fractional correction across frequent (even 1 ms) loop calls.
+  // Slewing by at most 10% preserves monotonic time and avoids timeout jumps.
+  uint64_t advance = delta;
+  if (serverClockActive && clockCorrectionMs) {
+    const uint8_t fraction = correctionRemainder + delta % 10;
+    const uint32_t budget = delta / 10 + fraction / 10;
+    correctionRemainder = fraction % 10;
+    const uint64_t remaining = clockCorrectionMs < 0 ? -clockCorrectionMs : clockCorrectionMs;
+    const uint32_t applied = remaining < budget ? (uint32_t)remaining : budget;
+    if (clockCorrectionMs < 0) {
+      advance -= applied;
+      clockCorrectionMs += applied;
+    } else {
+      advance += applied;
+      clockCorrectionMs -= applied;
+    }
+    if (!clockCorrectionMs) correctionRemainder = 0;
+  }
+  secTime.u32 += advance / 1000;
+  const uint16_t remainder = milTime.u16 + advance % 1000;
   secTime.u32 += remainder / 1000;
   milTime.u16 = remainder % 1000;
 }
@@ -145,23 +168,39 @@ void Boho::set_salt12( const void* data )
 
 void Boho::set_clock_rand( void)
 {
-  refreshTime();
-  microTime.u32 = micros();  
-  memcpy( _otpSrc44 + 32, secTime.buf , 4);
-  memcpy( _otpSrc44 + 36, milTime.buf , 2);
-  memcpy( _otpSrc44 + 38, counter.buf , 2);
-  memcpy( _otpSrc44 + 40, microTime.buf  , 4);  // JS: use crypto.getRandomValues(),  Arduino: use micros()
+  microTime.u32 = micros();
+  set_clock_nonce(microTime.buf);
 }
 
-
-void Boho::set_clock_nonce( const void* nonce)
+void Boho::set_clock_nonce(const void* nonce)
 {
   refreshTime();
-  memcpy( _otpSrc44 + 32, secTime.buf , 4);
-  memcpy( _otpSrc44 + 36, milTime.buf , 2);
-  memcpy( _otpSrc44 + 38, counter.buf , 2);
-  memcpy( _otpSrc44 + 40, nonce  , 4);
+  uint64_t timeMs = (uint64_t)secTime.u32 * 1000 + milTime.u16;
+  uint16_t sequence = counter.u16;
+  // Clock correction, explicit setTime(), loop-driven counter wrap and E2E
+  // interleaving must never reuse an outgoing clock/counter combination.
+  if (hasSendClock && (timeMs < lastSendTimeMs ||
+      (timeMs == lastSendTimeMs && sequence <= lastSendCounter))) {
+    timeMs = lastSendTimeMs;
+    sequence = lastSendCounter + 1;
+    if (!sequence) ++timeMs;
+  }
+  sendClockValid = timeMs <= (uint64_t)0xffffffffUL * 1000 + 999;
+  if (!sendClockValid) return;
+  hasSendClock = true;
+  lastSendTimeMs = timeMs;
+  lastSendCounter = sequence;
+  counter.u16 = sequence;
+  u32buf4 seconds;
+  u16buf2 milliseconds;
+  seconds.u32 = timeMs / 1000;
+  milliseconds.u16 = timeMs % 1000;
+  memcpy(_otpSrc44 + 32, seconds.buf, 4);
+  memcpy(_otpSrc44 + 36, milliseconds.buf, 2);
+  memcpy(_otpSrc44 + 38, counter.buf, 2);
+  memcpy(_otpSrc44 + 40, nonce, 4);
 }
+
 
 void Boho::resetOTP( void)
 {
@@ -200,6 +239,7 @@ uint32_t Boho::encryptPack( uint8_t *output, const void *input, uint32_t inputLe
 
 
   set_clock_rand();
+  if (!sendClockValid) return 0;
   resetOTP();
 
   if( !generateHMAC( input, inputLen ) ) return 0;
@@ -255,6 +295,7 @@ uint32_t Boho::encrypt_488( uint8_t *output, const void *input, uint32_t inputLe
   if( !isAuthorized ) return 0;
 
   set_clock_nonce( remoteNonce.buf );
+  if (!sendClockValid) return 0;
   resetOTP();
   
   if( !generateHMAC( input, inputLen ) ) return 0;
@@ -297,6 +338,8 @@ void  Boho::setTime( uint32_t utc , uint16_t millis )
   secTime.u32 = utc + millis / 1000;
   milTime.u16 = millis % 1000;
   lastTime = ::millis();
+  clockCorrectionMs = 0;
+  correctionRemainder = 0;
 }
 
 void Boho::setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t inputLen )
@@ -308,6 +351,10 @@ void Boho::setClientTimeToServerTime( const uint8_t* server_time_nonce , size_t 
   if (ms.u16 >= 1000) return;
   if (server_time_nonce != serverChallenge) memcpy(serverChallenge, server_time_nonce, sizeof(serverChallenge));
   hasChallenge = true;
+  serverClockActive = false;
+  hasServerSample = false;
+  clockCorrectionMs = 0;
+  correctionRemainder = 0;
   memcpy(secTime.buf, server_time_nonce + 1, 4);
   milTime = ms;
   lastTime = millis();
@@ -325,6 +372,10 @@ int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t i
     setClientTimeToServerTime(server_time_nonce, inputLen);
     memcpy(counter.buf, server_time_nonce + 7, 2);
   }
+  serverClockActive = false;
+  hasServerSample = false;
+  clockCorrectionMs = 0;
+  correctionRemainder = 0;
   memcpy( remoteNonce.buf, server_time_nonce + 9 , 4);
 
   set_salt12( server_time_nonce + 1 ); //read 12bytes from server_time_nonce
@@ -353,6 +404,7 @@ bool Boho::verify_auth_res( const uint8_t* auth_ack, size_t inputLen )
     return false;
   }
   isAuthorized = true;
+  serverClockActive = true;
   return true;
 }
 
@@ -448,8 +500,12 @@ bool Boho::decrypt_488(void *output, const uint8_t *input, uint32_t inputLen, ui
   const uint32_t size = declared.u32;
   if (size > inputLen - MetaSize_ENC_488 || (!output && size) ||
       (input[0] == ENC_488 && size != inputLen - MetaSize_ENC_488)) return false;
-  u16buf2 ms;
+  const uint32_t receivedAt = millis();
+  u32buf4 seconds;
+  u16buf2 ms, sequence;
+  memcpy(seconds.buf, input + 5, 4);
   memcpy(ms.buf, input + 9, 2);
+  memcpy(sequence.buf, input + 11, 2);
   if (ms.u16 >= 1000) return false;
   uint8_t expected[8];
   memcpy(expected, input + 13, 8);
@@ -462,8 +518,28 @@ bool Boho::decrypt_488(void *output, const uint8_t *input, uint32_t inputLen, ui
     if (size) memset(output, 0, size);
     return false;
   }
+  observeServerClock(seconds.u32, ms.u16, sequence.u16, receivedAt);
   length = size;
   return true;
+}
+
+void Boho::observeServerClock(uint32_t seconds, uint16_t milliseconds,
+                              uint16_t sequence, uint32_t receivedAt)
+{
+  if (!serverClockActive) return;
+  const uint64_t serverMs = (uint64_t)seconds * 1000 + milliseconds;
+  // Duplicate or older envelopes may still be handled by the caller, but must
+  // not steer the clock again. The server JS sender has a monotonic wire clock.
+  if (hasServerSample && (serverMs < lastServerTimeMs ||
+      (serverMs == lastServerTimeMs && sequence <= lastServerCounter))) return;
+  refreshTime();
+  hasServerSample = true;
+  lastServerTimeMs = serverMs;
+  lastServerCounter = sequence;
+  // Account for local decryption time; unknown network delay is not estimated.
+  const uint64_t target = serverMs + (uint32_t)(lastTime - receivedAt);
+  clockCorrectionMs = (int64_t)target - ((int64_t)secTime.u32 * 1000 + milTime.u16);
+  if (!clockCorrectionMs) correctionRemainder = 0;
 }
 
 bool Boho::decrypt_e2e(void *output, const uint8_t *input, uint32_t inputLen,

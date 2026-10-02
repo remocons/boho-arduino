@@ -7,12 +7,26 @@ The name **boho** means “protection.” It uses the same packet formats as
 [Boho for JavaScript](https://github.com/remocons/boho), for communication with
 Node.js servers and browser clients.
 
-**Current version: 0.8.0**
+**Current version: 0.9.0**
 
 Boho handles cryptographic packets. Your application supplies the transport,
 message framing, buffers and connection lifecycle. It can be used with TCP,
 Serial, WebSocket or MQTT payloads, and with stored data. For a complete messaging
 client, see [IOSignal for Arduino](https://github.com/remocons/iosignal-arduino).
+
+## Authenticated clock correction in 0.9.0
+
+After server authentication, valid `ENC_488` / `ENC_E2E` envelopes steer the
+internal clock at up to +/-10% of elapsed time. Time does not step backward.
+Duplicate/older server samples, invalid packets and inner E2E payloads never
+steer the clock. Outgoing clock/counter combinations also remain unique across
+counter wrap and clock corrections. Existing wire formats are unchanged.
+
+An offset of one second takes about ten seconds to correct unless newer samples
+change the target. Network delay remains, and there is no correction without
+incoming encrypted messages. Use `millis()` for precise local intervals; clocks
+based on `getUnixTime()` temporarily run faster or slower during correction.
+Large offsets can still require reconnecting under the server's time policy.
 
 ## Why Boho?
 
