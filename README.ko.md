@@ -7,14 +7,14 @@ Boho는 Arduino용 데이터 암호화와 클라이언트–서버 인증을 제
 [JavaScript용 Boho](https://github.com/remocons/boho)와 같은 패킷 형식을 사용하여
 Node.js 서버 및 브라우저 클라이언트와 통신할 수 있습니다.
 
-**현재 버전: 0.9.0**
+**현재 버전: 1.0.0**
 
 Boho는 암호화 패킷을 처리합니다. 전송 수단, 메시지 프레이밍, 버퍼와 연결
 수명주기는 응용 프로그램이 제공합니다. TCP, 직렬 통신, WebSocket, MQTT
 페이로드와 저장 데이터에 사용할 수 있습니다. 완성된 메시징 클라이언트는
 [IOSignal for Arduino](https://github.com/remocons/iosignal-arduino)를 참고하세요.
 
-## 0.9.0 인증된 서버 시각 보정
+## 1.0.0 인증된 서버 시각 보정
 
 서버 인증 후 검증된 `ENC_488` / `ENC_E2E` 헤더로 내장 시계를 경과시간의
 최대 ±10% 속도로 보정합니다. 시간이 뒤로 이동하지 않으며 중복·오래된 서버
