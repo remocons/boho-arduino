@@ -94,6 +94,10 @@ class Boho
     int auth_req( uint8_t* );
     int auth_req( uint8_t* out, const uint8_t* server_time_nonce , size_t len);
     bool verify_auth_res( const uint8_t* auth_res, size_t len );
+    // Boards without hardware random numbers (Uno): a value that differs at every boot, for example a
+    // counter kept in EEPROM, makes the login nonce differ from every earlier boot. Call it before the
+    // first login. ESP32 and ESP8266 use the chip's random numbers and ignore it.
+    void setNonceSeed( uint32_t seed ) { nonceSource.seed = seed; }
 
     bool isAuthorized = false;
 
@@ -123,6 +127,10 @@ class Boho
     union u16buf2 milTime;
     union u16buf2 counter;
     uint32_t lastTime;
+    void freshNonce( void );
+    void stirNonce( void );
+    // What the nonce is hashed from on boards without hardware random numbers.
+    struct { uint32_t timing; uint32_t seed; } nonceSource = {0, 0}; // refreshTime() and auth_req(), setNonceSeed()
     
 };
 

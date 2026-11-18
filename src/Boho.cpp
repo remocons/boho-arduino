@@ -11,6 +11,7 @@
 #if defined(ESP32)
   #include "esp_heap_caps.h"
   #include "esp32-hal-psram.h"
+  #include "esp_random.h"
 #endif
 
 #include "Boho.h"
@@ -109,6 +110,10 @@ void  Boho::refreshTime( void)
   const uint32_t now = millis();
   const uint32_t delta = now - lastTime; // unsigned subtraction includes rollover
   lastTime = now;
+#if !defined(ESP32) && !defined(ESP8266)
+  // No hardware random numbers: gather the timing of every call (see freshNonce()).
+  stirNonce();
+#endif
   ++counter.u16;
   // Accumulate fractional correction across frequent (even 1 ms) loop calls.
   // Slewing by at most 10% preserves monotonic time and avoids timeout jumps.
@@ -379,8 +384,8 @@ int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t i
   memcpy( remoteNonce.buf, server_time_nonce + 9 , 4);
 
   set_salt12( server_time_nonce + 1 ); //read 12bytes from server_time_nonce
-  localNonce.u32 = micros();
-  
+  freshNonce();
+
   if( !generateHMAC( localNonce.buf, 4 ) ) return 0;
 
   output[0] = Boho::MsgType::AUTH_REQ;
@@ -389,6 +394,32 @@ int Boho::auth_req( uint8_t* output, const uint8_t* server_time_nonce , size_t i
   memcpy( output + 13 , _hmac , 32 );    
   
   return MetaSize_AUTH_REQ; 
+}
+
+// One function for both callers: an Uno has no flash for two copies of a 32-bit sum.
+void __attribute__((noinline)) Boho::stirNonce( void )
+{
+  nonceSource.timing += micros();
+}
+
+// The client nonce of a login. The server's proof (AUTH_RES) and what it sends encrypted afterwards
+// depend on it, so a value used before would let a recorded session be played back to this device.
+// ESP32, ESP8266: the chip's hardware random numbers. Other boards (Uno) have none: the timing
+// gathered since boot and the value from setNonceSeed() go through the keyed hash with the server's
+// challenge, so the result cannot be worked out or steered without the key.
+void Boho::freshNonce( void )
+{
+#if defined(BOHO_TEST_FIXED_NONCE) // host tests with packets prepared for one nonce; never set in a board build
+  localNonce.u32 = BOHO_TEST_FIXED_NONCE;
+#elif defined(ESP32)
+  localNonce.u32 = esp_random();
+#elif defined(ESP8266)
+  localNonce.u32 = RANDOM_REG32 ^ micros();
+#else
+  stirNonce(); // the next login differs even at the same instant
+  generateHMAC( &nonceSource, sizeof(nonceSource) ); // key + the server's challenge (salt12) + source
+  memcpy( localNonce.buf, _hmac, 4 );
+#endif
 }
 
 bool Boho::verify_auth_res( const uint8_t* auth_ack, size_t inputLen )

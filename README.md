@@ -7,12 +7,30 @@ The name **boho** means “protection.” It uses the same packet formats as
 [Boho for JavaScript](https://github.com/remocons/boho), for communication with
 Node.js servers and browser clients.
 
-**Current version: 1.0.0**
+**Current version: 1.1.0**
 
 Boho handles cryptographic packets. Your application supplies the transport,
 message framing, buffers and connection lifecycle. It can be used with TCP,
 Serial, WebSocket or MQTT payloads, and with stored data. For a complete messaging
 client, see [IOSignal for Arduino](https://github.com/remocons/iosignal-arduino).
+
+## Login nonce in 1.1.0
+
+`auth_req()` no longer uses `micros()` as the client nonce. The server's proof
+(`AUTH_RES`) and what the server sends encrypted afterwards depend on this nonce,
+and `micros()` falls in a narrow range right after boot. Packet layouts are
+unchanged, and so is the server side.
+
+- ESP32 and ESP8266 take the nonce from the chip's hardware random numbers.
+- Other boards (Uno, Uno R4) have none. Boho adds up `micros()` on every
+  `refreshTime()` and every login, and takes the nonce from the keyed hash of
+  that sum with the server's challenge. This is not a random number generator:
+  it makes the value hard to work out or steer without the key.
+- `setNonceSeed(value)` adds a value of your own to that hash. Give it something
+  that differs at every boot, such as a counter kept in EEPROM, before the first
+  login, and a nonce cannot repeat one from an earlier boot. ESP boards ignore it.
+
+On an Uno the change costs about 100 bytes of flash and one more SHA-256 per login.
 
 ## Authenticated clock correction in 1.0.0
 
